@@ -1,0 +1,70 @@
+name: GitHub Actions CI
+on:
+  push:
+    branches:
+        - none
+#       - main
+#       - develop
+#       - 'feature/**'
+#       - 'release/**'
+
+jobs:
+  Explore-GitHub-Actions:
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Install gitversion
+        uses: gittools/actions/gitversion/setup@v0.9.13
+        with:
+          versionSpec: '5.x'
+
+      - name: Determine Version
+        uses: gittools/actions/gitversion/execute@v0.9.13
+        with:
+          useConfigFile: true
+          configFilePath: VersionConfig.yml
+
+      - name: Display Version
+        run: |
+          echo "SemanticVersion: $GITVERSION_SEMVER"
+      - name: Name of branch
+        id: branch
+        uses: ashley-taylor/regex-property-action@1.2
+        with:
+          value: ${{ env.GITVERSION_SEMVER }}
+          regex: "\\-[^\\-]*$"
+          flags: "" # Optional, defaults to "g"
+          replacement: ""
+
+      - name: branch
+        run: echo "${{ steps.branch.outputs.value }}"
+
+      - uses: mukunku/tag-exists-action@v1.0.0
+        id: checkTag
+        with: 
+          tag: 'v${{ steps.branch.outputs.value }}'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate new tag
+        id: gen_tag
+        if: |
+          contains(github.ref_name, 'release') &&
+          steps.checkTag.outputs.exists != true
+        uses: tvdias/github-tagger@v0.0.1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          tag: 'v${{ steps.branch.outputs.value }}'
+
+      - name: Create release
+        if: ${{ github.ref_name == 'main' }}
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ steps.branch.outputs.value}}
+          name: ${{ steps.branch.outputs.value }}
+          body: ${{ steps.branch.outputs.value }}
